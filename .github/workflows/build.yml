@@ -120,6 +120,8 @@ jobs:
     steps:
       - name: 检出代码
         uses: actions/checkout@v4
+      - name: 安装 ARM 交叉编译工具
+        run: sudo apt-get update && sudo apt-get install -y gcc-arm-linux-gnueabihf
       - name: 设置 Go 环境
         uses: actions/setup-go@v5
         with:
@@ -128,8 +130,8 @@ jobs:
         run: go mod download && go mod tidy
       - name: 构建
         run: |
-          CGO_ENABLED=1 GOOS=linux GOARCH=arm GOARM=7 go build -ldflags="-s -w -X main.Version=${{ github.event.inputs.version }}" -o lottery-tool-linux-armv7 ./cmd/cli
-          CGO_ENABLED=1 GOOS=linux GOARCH=arm GOARM=7 go build -ldflags="-s -w -X main.Version=${{ github.event.inputs.version }}" -o lottery-server-linux-armv7 ./cmd/server
+          CGO_ENABLED=1 GOOS=linux GOARCH=arm GOARM=7 CC=arm-linux-gnueabihf-gcc go build -ldflags="-s -w -X main.Version=${{ github.event.inputs.version }}" -o lottery-tool-linux-armv7 ./cmd/cli
+          CGO_ENABLED=1 GOOS=linux GOARCH=arm GOARM=7 CC=arm-linux-gnueabihf-gcc go build -ldflags="-s -w -X main.Version=${{ github.event.inputs.version }}" -o lottery-server-linux-armv7 ./cmd/server
       - name: 上传产物
         uses: actions/upload-artifact@v4
         with:
@@ -192,10 +194,8 @@ jobs:
     steps:
       - name: 检出代码
         uses: actions/checkout@v4
-      - name: 安装交叉编译工具
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y mingw-w64
+      - name: 安装 Windows 交叉编译工具
+        run: sudo apt-get update && sudo apt-get install -y mingw-w64
       - name: 设置 Go 环境
         uses: actions/setup-go@v5
         with:
@@ -204,8 +204,8 @@ jobs:
         run: go mod download && go mod tidy
       - name: 构建
         run: |
-          CGO_ENABLED=1 GOOS=windows GOARCH=amd64 go build -ldflags="-s -w -X main.Version=${{ github.event.inputs.version }}" -o lottery-tool-windows-amd64.exe ./cmd/cli
-          CGO_ENABLED=1 GOOS=windows GOARCH=amd64 go build -ldflags="-s -w -X main.Version=${{ github.event.inputs.version }}" -o lottery-server-windows-amd64.exe ./cmd/server
+          CGO_ENABLED=1 GOOS=windows GOARCH=amd64 CC=x86_64-w64-mingw32-gcc go build -ldflags="-s -w -X main.Version=${{ github.event.inputs.version }}" -o lottery-tool-windows-amd64.exe ./cmd/cli
+          CGO_ENABLED=1 GOOS=windows GOARCH=amd64 CC=x86_64-w64-mingw32-gcc go build -ldflags="-s -w -X main.Version=${{ github.event.inputs.version }}" -o lottery-server-windows-amd64.exe ./cmd/server
       - name: 上传产物
         uses: actions/upload-artifact@v4
         with:
