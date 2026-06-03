@@ -206,11 +206,15 @@ jobs:
         run: |
           CGO_ENABLED=1 GOOS=windows GOARCH=amd64 CC=x86_64-w64-mingw32-gcc go build -ldflags="-s -w -X main.Version=${{ github.event.inputs.version }}" -o lottery-tool-windows-amd64.exe ./cmd/cli
           CGO_ENABLED=1 GOOS=windows GOARCH=amd64 CC=x86_64-w64-mingw32-gcc go build -ldflags="-s -w -X main.Version=${{ github.event.inputs.version }}" -o lottery-server-windows-amd64.exe ./cmd/server
+      - name: 检查文件
+        run: ls -la *.exe || echo "No .exe files found. Let's list all files:" && ls -la
       - name: 上传产物
         uses: actions/upload-artifact@v4
         with:
           name: windows-amd64
-          path: lottery-tool-windows-amd64.exe lottery-server-windows-amd64.exe
+          path: |
+            lottery-tool-windows-amd64.exe
+            lottery-server-windows-amd64.exe
           retention-days: 30
 
   build-docker-amd64:

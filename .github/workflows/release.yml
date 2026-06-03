@@ -191,11 +191,12 @@ jobs:
         run: |
           CGO_ENABLED=1 GOOS=windows GOARCH=amd64 CC=x86_64-w64-mingw32-gcc go build -ldflags="-s -w -X main.Version=${{ github.event.inputs.version }}" -o lottery-tool-windows-amd64.exe ./cmd/cli
           CGO_ENABLED=1 GOOS=windows GOARCH=amd64 CC=x86_64-w64-mingw32-gcc go build -ldflags="-s -w -X main.Version=${{ github.event.inputs.version }}" -o lottery-server-windows-amd64.exe ./cmd/server
+      - name: 检查文件
+        run: ls -la *.exe || echo "No .exe files found. Let's list all files:" && ls -la
       - name: 打包
         run: |
           mkdir -p release
-          cd release
-          powershell -Command "Compress-Archive -Path '../lottery-tool-windows-amd64.exe','../lottery-server-windows-amd64.exe','../config/config.yaml' -DestinationPath 'lottery-tool-windows-amd64-${{ github.event.inputs.version }}.zip' -Force"
+          zip release/lottery-tool-windows-amd64-${{ github.event.inputs.version }}.zip lottery-tool-windows-amd64.exe lottery-server-windows-amd64.exe config/config.yaml
       - name: 上传产物
         uses: actions/upload-artifact@v4
         with:
