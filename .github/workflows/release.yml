@@ -203,7 +203,7 @@ jobs:
       - name: 检出代码
         uses: actions/checkout@v4
       - name: 安装 Windows 交叉编译工具
-        run: sudo apt-get update && sudo apt-get install -y mingw-w64
+        run: sudo apt-get update && sudo apt-get install -y mingw-w64 zip
       - name: 设置 Go 环境
         uses: actions/setup-go@v5
         with:
@@ -214,7 +214,7 @@ jobs:
         run: |
           CGO_ENABLED=1 GOOS=windows GOARCH=amd64 CC=x86_64-w64-mingw32-gcc go build -ldflags="-s -w -X main.Version=${{ github.event.inputs.version }}" -o lottery-tool-windows-amd64.exe ./cmd/cli
           CGO_ENABLED=1 GOOS=windows GOARCH=amd64 CC=x86_64-w64-mingw32-gcc go build -ldflags="-s -w -X main.Version=${{ github.event.inputs.version }}" -o lottery-server-windows-amd64.exe ./cmd/server
-          powershell -Command "Compress-Archive -Path 'lottery-tool-windows-amd64.exe','lottery-server-windows-amd64.exe','config/config.yaml' -DestinationPath 'lottery-tool-windows-amd64-${{ github.event.inputs.version }}.zip' -Force"
+          zip lottery-tool-windows-amd64-${{ github.event.inputs.version }}.zip lottery-tool-windows-amd64.exe lottery-server-windows-amd64.exe config/config.yaml
       - name: 上传到 Release
         uses: softprops/action-gh-release@v1
         with:
