@@ -44,6 +44,9 @@ on:
         type: boolean
         default: false
 
+permissions:
+  contents: write
+
 jobs:
   build-linux-amd64:
     name: 构建 Linux amd64
