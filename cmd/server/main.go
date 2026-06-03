@@ -19,35 +19,36 @@ import (
 
 var (
 	configPath string
+	serverPort int
 	rootCmd    = &cobra.Command{
 		Use:   "lottery-server",
 		Short: "大乐透和双色球选号工具服务器",
 		Long:  `一个基于Go语言开发的彩票API服务器`,
+		Run:   runServer,
 	}
 )
 
 func init() {
 	cobra.OnInitialize(initConfig)
 	rootCmd.PersistentFlags().StringVarP(&configPath, "config", "c", "config/config.yaml", "配置文件路径")
-	rootCmd.Flags().Int("port", 8080, "服务端口")
+	rootCmd.PersistentFlags().IntVarP(&serverPort, "port", "p", 51818, "服务端口")
 }
 
 func initConfig() {
-	if _, err := config.Load(configPath); err != nil {
-		log.Fatalf("加载配置失败: %v", err)
-	}
-}
-
-func main() {
-	port, _ := rootCmd.Flags().GetInt("port")
-	
-	// 确保配置已加载
 	if config.Get() == nil {
 		if _, err := config.Load(configPath); err != nil {
 			log.Fatalf("加载配置失败: %v", err)
 		}
 	}
-	
+}
+
+func main() {
+	if err := rootCmd.Execute(); err != nil {
+		fmt.Println(err)
+	}
+}
+
+func runServer(cmd *cobra.Command, args []string) {
 	cfg := config.Get()
 	store, err := storage.New(cfg.Database.Path)
 	if err != nil {
@@ -60,25 +61,25 @@ func main() {
 
 	// 创建 HTTP 多路复用器
 	mux := http.NewServeMux()
-	
+
 	// API 路由
 	api := &APIHandler{
-		store:           store,
-		scraperFactory:  scraperFactory,
-		predictor:       pred,
-		config:          cfg,
+		store:          store,
+		scraperFactory: scraperFactory,
+		predictor:      pred,
+		config:         cfg,
 	}
-	
+
 	mux.HandleFunc("/", api.serveIndex)
 	mux.HandleFunc("/api/fetch", api.handleFetch)
 	mux.HandleFunc("/api/list", api.handleList)
 	mux.HandleFunc("/api/analyze", api.handleAnalyze)
 	mux.HandleFunc("/api/predict", api.handlePredict)
 
-	addr := fmt.Sprintf(":%d", port)
+	addr := fmt.Sprintf(":%d", serverPort)
 	log.Printf("服务器启动于 http://localhost%s", addr)
 	log.Printf("访问 http://localhost%s 查看测试页面", addr)
-	
+
 	if err := http.ListenAndServe(addr, mux); err != nil {
 		log.Fatalf("服务器启动失败: %v", err)
 	}
@@ -118,11 +119,11 @@ func (h *APIHandler) serveIndex(w http.ResponseWriter, r *http.Request) {
 func (h *APIHandler) handleFetch(w http.ResponseWriter, r *http.Request) {
 	lotteryType := r.URL.Query().Get("type")
 	limitStr := r.URL.Query().Get("limit")
-	
+
 	if lotteryType == "" {
 		lotteryType = "ssq"
 	}
-	
+
 	limit := 100
 	if limitStr != "" {
 		if l, err := strconv.Atoi(limitStr); err == nil {
@@ -169,11 +170,11 @@ func (h *APIHandler) handleFetch(w http.ResponseWriter, r *http.Request) {
 func (h *APIHandler) handleList(w http.ResponseWriter, r *http.Request) {
 	lotteryType := r.URL.Query().Get("type")
 	limitStr := r.URL.Query().Get("limit")
-	
+
 	if lotteryType == "" {
 		lotteryType = "ssq"
 	}
-	
+
 	limit := 20
 	if limitStr != "" {
 		if l, err := strconv.Atoi(limitStr); err == nil {
@@ -213,7 +214,7 @@ func (h *APIHandler) handleList(w http.ResponseWriter, r *http.Request) {
 
 func (h *APIHandler) handleAnalyze(w http.ResponseWriter, r *http.Request) {
 	lotteryType := r.URL.Query().Get("type")
-	
+
 	if lotteryType == "" {
 		lotteryType = "ssq"
 	}
@@ -255,14 +256,14 @@ func (h *APIHandler) handlePredict(w http.ResponseWriter, r *http.Request) {
 	lotteryType := r.URL.Query().Get("type")
 	strategy := r.URL.Query().Get("strategy")
 	countStr := r.URL.Query().Get("count")
-	
+
 	if lotteryType == "" {
 		lotteryType = "ssq"
 	}
 	if strategy == "" {
 		strategy = "random"
 	}
-	
+
 	count := 5
 	if countStr != "" {
 		if c, err := strconv.Atoi(countStr); err == nil && c > 0 && c <= 20 {
@@ -307,15 +308,15 @@ func (h *APIHandler) handlePredict(w http.ResponseWriter, r *http.Request) {
 			"strategy":     p.Strategy,
 			"red_numbers":  p.RedNumbers,
 			"blue_numbers": p.BlueNumbers,
-			"confidence":    p.Confidence,
+			"confidence":   p.Confidence,
 		})
 	}
 
 	writeJSON(w, http.StatusOK, JSONResponse{
 		Success: true,
 		Data: map[string]interface{}{
-			"type":       lotteryType,
-			"strategy":   strategy,
+			"type":        lotteryType,
+			"strategy":    strategy,
 			"predictions": data,
 		},
 	})
@@ -362,7 +363,7 @@ const indexHTML = `
 <body>
     <div class="container">
         <h1>🎰 彩票工具 API 测试页面</h1>
-        
+
         <div class="panel">
             <div class="panel-header">📡 可用 API 接口</div>
             <div class="panel-body">
@@ -471,12 +472,6 @@ const indexHTML = `
         async function apiCall(url) {
             const resp = await fetch(API_BASE + url);
             return resp.json();
-        }
-
-        function showResult(id, data, isError = false) {
-            const el = document.getElementById(id);
-            el.textContent = JSON.stringify(data, null, 2);
-            el.style.color = isError ? '#dc3545' : '#333';
         }
 
         async function fetchData() {
