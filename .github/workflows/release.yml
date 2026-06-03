@@ -73,7 +73,6 @@ jobs:
           name: v${{ github.event.inputs.version }}
           body: ${{ github.event.inputs.release_notes }}
           files: lottery-tool-linux-amd64-${{ github.event.inputs.version }}.tar.gz
-          draft: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -102,7 +101,6 @@ jobs:
           name: v${{ github.event.inputs.version }}
           body: ${{ github.event.inputs.release_notes }}
           files: lottery-tool-linux-arm64-${{ github.event.inputs.version }}.tar.gz
-          draft: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -133,7 +131,6 @@ jobs:
           name: v${{ github.event.inputs.version }}
           body: ${{ github.event.inputs.release_notes }}
           files: lottery-tool-linux-armv7-${{ github.event.inputs.version }}.tar.gz
-          draft: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -162,7 +159,6 @@ jobs:
           name: v${{ github.event.inputs.version }}
           body: ${{ github.event.inputs.release_notes }}
           files: lottery-tool-darwin-amd64-${{ github.event.inputs.version }}.tar.gz
-          draft: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -191,7 +187,6 @@ jobs:
           name: v${{ github.event.inputs.version }}
           body: ${{ github.event.inputs.release_notes }}
           files: lottery-tool-darwin-arm64-${{ github.event.inputs.version }}.tar.gz
-          draft: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -222,6 +217,5 @@ jobs:
           name: v${{ github.event.inputs.version }}
           body: ${{ github.event.inputs.release_notes }}
           files: lottery-tool-windows-amd64-${{ github.event.inputs.version }}.zip
-          draft: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
