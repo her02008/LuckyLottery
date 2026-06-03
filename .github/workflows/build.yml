@@ -192,6 +192,10 @@ jobs:
     steps:
       - name: 检出代码
         uses: actions/checkout@v4
+      - name: 安装交叉编译工具
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mingw-w64
       - name: 设置 Go 环境
         uses: actions/setup-go@v5
         with:
