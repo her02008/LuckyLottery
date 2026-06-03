@@ -239,16 +239,19 @@ var listCmd = &cobra.Command{
 		}
 
 		fmt.Printf("\n%s历史开奖数据（最近%d期）\n", getLotteryName(lotteryType), len(results))
-		fmt.Println(strings.Repeat("=", 60))
-		fmt.Printf("%-12s %-12s %-20s %-15s\n", "期号", "日期", "红球", "蓝球")
-		fmt.Println(strings.Repeat("-", 60))
+		fmt.Println(strings.Repeat("=", 50))
+		fmt.Printf("%-12s %-12s %-25s %-10s\n", "期号", "日期", "红球", "蓝球")
+		fmt.Println(strings.Repeat("-", 50))
 
 		for _, r := range results {
-			fmt.Printf("%-12s %-12s %-20v %-15v\n",
+			// 格式化红球为紧凑字符串
+			redStr := formatNumbers(r.RedNumbers)
+			blueStr := formatNumbers(r.BlueNumbers)
+			fmt.Printf("%-12s %-12s %-25s %-10s\n",
 				r.Issue,
 				r.DrawDate.Format("2006-01-02"),
-				r.RedNumbers,
-				r.BlueNumbers,
+				redStr,
+				blueStr,
 			)
 		}
 	},
@@ -296,4 +299,16 @@ func getLotteryName(t types.LotteryType) string {
 	default:
 		return "未知"
 	}
+}
+
+// formatNumbers 格式化数字数组为紧凑字符串
+func formatNumbers(numbers []int) string {
+	if len(numbers) == 0 {
+		return ""
+	}
+	result := fmt.Sprintf("%02d", numbers[0])
+	for i := 1; i < len(numbers); i++ {
+		result += fmt.Sprintf(" %02d", numbers[i])
+	}
+	return result
 }
