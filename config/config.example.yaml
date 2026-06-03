@@ -1,0 +1,24 @@
+app:
+  name: lottery-tool
+  version: 1.0.0
+
+database:
+  path: ./data/lottery.db
+
+scraper:
+  enabled: true
+  interval: 86400
+  dlt_url: ""
+  ssq_url: ""
+
+ai:
+  enabled: true
+  api_url: ""
+  api_key: ""
+  model: ""
+  timeout: 30
+
+server:
+  enabled: false
+  port: 8080
+  host: 0.0.0.0

@@ -60,9 +60,13 @@ func NewDLTScraper(baseURL string) *DLTScraper {
 }
 
 func (s *DLTScraper) FetchHistory(limit int) ([]*types.DrawResult, error) {
-	// 这里使用中国体彩官网API或其他数据源
-	// 示例实现，实际使用时需要替换为真实的数据源
-	url := fmt.Sprintf("%s?limit=%d", s.baseURL, limit)
+	// 使用内置API或用户配置的API
+	if s.baseURL == "" {
+		s.baseURL = BuiltInSSQLotteryAPI
+	}
+	
+	// 构造API请求URL（大乐透类型为dlt）
+	url := fmt.Sprintf("%s?type=dlt&limit=%d", s.baseURL, limit)
 	
 	data, err := s.client.Get(url)
 	if err != nil {
@@ -84,40 +88,61 @@ func (s *DLTScraper) FetchLatest() (*types.DrawResult, error) {
 }
 
 func (s *DLTScraper) parseJSONData(data []byte) ([]*types.DrawResult, error) {
-	// 解析JSON数据
-	// 这里需要根据实际的数据格式进行调整
-	var rawData []map[string]interface{}
-	if err := json.Unmarshal(data, &rawData); err != nil {
+	// 适配 huiniao.top API 格式
+	var response struct {
+		Code int `json:"code"`
+		Info string `json:"info"`
+		Data struct {
+			Data struct {
+				List []struct {
+					Code string `json:"code"` // 期号
+					Day  string `json:"day"`  // 日期
+					One  string `json:"one"`  // 红球1
+					Two  string `json:"two"`  // 红球2
+					Three string `json:"three"` // 红球3
+					Four  string `json:"four"`  // 红球4
+					Five  string `json:"five"`  // 红球5
+					Six   string `json:"six"`   // 红球6
+					Seven string `json:"seven"` // 蓝球
+				} `json:"list"`
+			} `json:"data"`
+		} `json:"data"`
+	}
+	
+	if err := json.Unmarshal(data, &response); err != nil {
 		return nil, fmt.Errorf("failed to parse JSON: %w", err)
+	}
+	
+	if response.Code != 1 {
+		return nil, fmt.Errorf("API error: %s", response.Info)
 	}
 
 	var results []*types.DrawResult
-	for _, item := range rawData {
+	for _, item := range response.Data.Data.List {
 		result := &types.DrawResult{
-			Type: types.LotteryTypeDLT,
-		}
-		
-		// 解析期号
-		if issue, ok := item["issue"].(string); ok {
-			result.Issue = issue
+			Type:  types.LotteryTypeDLT,
+			Issue: item.Code,
 		}
 		
 		// 解析日期
-		if dateStr, ok := item["date"].(string); ok {
-			date, err := time.Parse("2006-01-02", dateStr)
-			if err == nil {
-				result.DrawDate = date
+		if date, err := time.Parse("2006-01-02", item.Day); err == nil {
+			result.DrawDate = date
+		}
+		
+		// 解析红球/前区 (one-five)
+		result.RedNumbers = []int{}
+		for _, n := range []string{item.One, item.Two, item.Three, item.Four, item.Five} {
+			if num, err := strconv.Atoi(n); err == nil {
+				result.RedNumbers = append(result.RedNumbers, num)
 			}
 		}
 		
-		// 解析红球 (大乐透前区 1-35)
-		if redStr, ok := item["red"].(string); ok {
-			result.RedNumbers = parseNumbers(redStr)
-		}
-		
-		// 解析蓝球 (大乐透后区 1-12)
-		if blueStr, ok := item["blue"].(string); ok {
-			result.BlueNumbers = parseNumbers(blueStr)
+		// 解析蓝球/后区 (six-seven)
+		result.BlueNumbers = []int{}
+		for _, n := range []string{item.Six, item.Seven} {
+			if num, err := strconv.Atoi(n); err == nil {
+				result.BlueNumbers = append(result.BlueNumbers, num)
+			}
 		}
 		
 		results = append(results, result)
@@ -178,7 +203,13 @@ func NewSSQScraper(baseURL string) *SSQScraper {
 }
 
 func (s *SSQScraper) FetchHistory(limit int) ([]*types.DrawResult, error) {
-	url := fmt.Sprintf("%s?limit=%d", s.baseURL, limit)
+	// 使用内置API或用户配置的API
+	if s.baseURL == "" {
+		s.baseURL = BuiltInSSQLotteryAPI
+	}
+	
+	// 构造API请求URL
+	url := fmt.Sprintf("%s?type=ssq&limit=%d", s.baseURL, limit)
 	
 	data, err := s.client.Get(url)
 	if err != nil {
@@ -200,36 +231,58 @@ func (s *SSQScraper) FetchLatest() (*types.DrawResult, error) {
 }
 
 func (s *SSQScraper) parseJSONData(data []byte) ([]*types.DrawResult, error) {
-	var rawData []map[string]interface{}
-	if err := json.Unmarshal(data, &rawData); err != nil {
+	// 适配 huiniao.top API 格式
+	var response struct {
+		Code int `json:"code"`
+		Info string `json:"info"`
+		Data struct {
+			Data struct {
+				List []struct {
+					Code string `json:"code"` // 期号
+					Day  string `json:"day"`  // 日期
+					One  string `json:"one"`  // 红球1
+					Two  string `json:"two"`  // 红球2
+					Three string `json:"three"` // 红球3
+					Four  string `json:"four"`  // 红球4
+					Five  string `json:"five"`  // 红球5
+					Six   string `json:"six"`   // 红球6
+					Seven string `json:"seven"` // 蓝球
+				} `json:"list"`
+			} `json:"data"`
+		} `json:"data"`
+	}
+	
+	if err := json.Unmarshal(data, &response); err != nil {
 		return nil, fmt.Errorf("failed to parse JSON: %w", err)
+	}
+	
+	if response.Code != 1 {
+		return nil, fmt.Errorf("API error: %s", response.Info)
 	}
 
 	var results []*types.DrawResult
-	for _, item := range rawData {
+	for _, item := range response.Data.Data.List {
 		result := &types.DrawResult{
-			Type: types.LotteryTypeSSQ,
+			Type:  types.LotteryTypeSSQ,
+			Issue: item.Code,
 		}
 		
-		if issue, ok := item["issue"].(string); ok {
-			result.Issue = issue
+		// 解析日期
+		if date, err := time.Parse("2006-01-02", item.Day); err == nil {
+			result.DrawDate = date
 		}
 		
-		if dateStr, ok := item["date"].(string); ok {
-			date, err := time.Parse("2006-01-02", dateStr)
-			if err == nil {
-				result.DrawDate = date
+		// 解析红球 (one-six)
+		result.RedNumbers = []int{}
+		for _, n := range []string{item.One, item.Two, item.Three, item.Four, item.Five, item.Six} {
+			if num, err := strconv.Atoi(n); err == nil {
+				result.RedNumbers = append(result.RedNumbers, num)
 			}
 		}
 		
-		// 双色球红球 1-33
-		if redStr, ok := item["red"].(string); ok {
-			result.RedNumbers = parseNumbers(redStr)
-		}
-		
-		// 双色球蓝球 1-16
-		if blueStr, ok := item["blue"].(string); ok {
-			result.BlueNumbers = parseNumbers(blueStr)
+		// 解析蓝球 (seven)
+		if num, err := strconv.Atoi(item.Seven); err == nil {
+			result.BlueNumbers = []int{num}
 		}
 		
 		results = append(results, result)
@@ -274,6 +327,12 @@ func convertToInts(parts []string) []int {
 	return nums
 }
 
+// 内置免费API（当用户未配置时使用）
+const (
+	// huiniao.top 免费API
+	BuiltInSSQLotteryAPI = "http://api.huiniao.top/interface/home/lotteryHistory"
+)
+
 // ScraperFactory 爬虫工厂
 type ScraperFactory struct {
 	dltURL string
@@ -281,6 +340,13 @@ type ScraperFactory struct {
 }
 
 func NewScraperFactory(dltURL, ssqURL string) *ScraperFactory {
+	// 如果用户未配置URL，使用内置免费API
+	if ssqURL == "" {
+		ssqURL = BuiltInSSQLotteryAPI
+	}
+	if dltURL == "" {
+		dltURL = BuiltInSSQLotteryAPI
+	}
 	return &ScraperFactory{
 		dltURL: dltURL,
 		ssqURL: ssqURL,
