@@ -1,0 +1,139 @@
+name: 发布 Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 版本号 (如 v1.0.0)
+        required: true
+        type: string
+        default: "v1.0.0"
+      release_notes:
+        description: 发布说明
+        required: false
+        type: string
+        default: "新版本发布"
+
+jobs:
+  build-all:
+    name: 构建所有平台
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+            suffix: linux-amd64
+          - goos: linux
+            goarch: arm64
+            suffix: linux-arm64
+          - goos: linux
+            goarch: arm
+            goarm: 7
+            suffix: linux-armv7
+          - goos: linux
+            goarch: arm
+            goarm: 6
+            suffix: linux-armv6
+          - goos: darwin
+            goarch: amd64
+            suffix: darwin-amd64
+          - goos: darwin
+            goarch: arm64
+            suffix: darwin-arm64
+          - goos: windows
+            goarch: amd64
+            suffix: windows-amd64
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 设置 Go 环境
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.21"
+
+      - name: 安装依赖
+        run: |
+          go mod download
+          go mod tidy
+
+      - name: 构建 CLI
+        env:
+          CGO_ENABLED: 1
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          GOARM: ${{ matrix.goarm }}
+        run: |
+          OUTPUT="lottery-tool-${{ matrix.suffix }}"
+          if [ "${{ matrix.goos }}" = "windows" ]; then
+            OUTPUT="${OUTPUT}.exe"
+          fi
+          go build -ldflags="-s -w -X main.Version=${{ github.event.inputs.version }}" -o ${OUTPUT} ./cmd/cli
+          echo "CLI_OUTPUT=${OUTPUT}" >> $GITHUB_ENV
+
+      - name: 构建 Server
+        env:
+          CGO_ENABLED: 1
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          GOARM: ${{ matrix.goarm }}
+        run: |
+          OUTPUT="lottery-server-${{ matrix.suffix }}"
+          if [ "${{ matrix.goos }}" = "windows" ]; then
+            OUTPUT="${OUTPUT}.exe"
+          fi
+          go build -ldflags="-s -w -X main.Version=${{ github.event.inputs.version }}" -o ${OUTPUT} ./cmd/server
+          echo "SERVER_OUTPUT=${OUTPUT}" >> $GITHUB_ENV
+
+      - name: 打包
+        run: |
+          mkdir -p release
+          if [ "${{ matrix.goos }}" = "windows" ]; then
+            zip release/lottery-tool-${{ matrix.suffix }}-${{ github.event.inputs.version }}.zip \
+              lottery-tool-${{ matrix.suffix }}.exe \
+              lottery-server-${{ matrix.suffix }}.exe \
+              config/config.yaml
+          else
+            tar -czf release/lottery-tool-${{ matrix.suffix }}-${{ github.event.inputs.version }}.tar.gz \
+              lottery-tool-${{ matrix.suffix }} \
+              lottery-server-${{ matrix.suffix }} \
+              config/config.yaml
+          fi
+
+      - name: 上传构建产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.suffix }}
+          path: release/
+          retention-days: 30
+
+  create-release:
+    name: 创建 Release
+    needs: build-all
+    runs-on: ubuntu-latest
+    steps:
+      - name: 下载所有产物
+        uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          path: release
+          merge-multiple: true
+
+      - name: 生成校验和
+        run: |
+          cd release
+          sha256sum * > checksums.txt
+
+      - name: 创建 Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.event.inputs.version }}
+          name: ${{ github.event.inputs.version }}
+          body: ${{ github.event.inputs.release_notes }}
+          files: release/*
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  lottery-tool:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile
+    image: lottery-tool:latest
+    container_name: lottery-tool
+    volumes:
+      - ../../data:/app/data
+      - ../../config:/app/config:ro
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
