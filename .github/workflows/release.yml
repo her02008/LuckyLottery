@@ -13,118 +13,190 @@ on:
         required: false
         type: string
         default: "新版本发布"
-      platforms:
-        description: 要构建的平台（逗号分隔：linux-amd64,linux-arm64,linux-armv7,darwin-amd64,darwin-arm64,windows-amd64）
-        required: true
-        type: string
-        default: "linux-amd64,linux-arm64"
+      linux_amd64:
+        description: 构建 Linux amd64
+        required: false
+        type: boolean
+        default: true
+      linux_arm64:
+        description: 构建 Linux arm64
+        required: false
+        type: boolean
+        default: false
+      linux_armv7:
+        description: 构建 Linux armv7
+        required: false
+        type: boolean
+        default: false
+      darwin_amd64:
+        description: 构建 Darwin amd64
+        required: false
+        type: boolean
+        default: false
+      darwin_arm64:
+        description: 构建 Darwin arm64
+        required: false
+        type: boolean
+        default: false
+      windows_amd64:
+        description: 构建 Windows amd64
+        required: false
+        type: boolean
+        default: false
 
 jobs:
-  build-all:
-    name: 构建指定平台
+  build-linux-amd64:
+    name: 构建 Linux amd64
+    if: ${{ github.event.inputs.linux_amd64 == 'true' }}
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        include:
-          - goos: linux
-            goarch: amd64
-            suffix: linux-amd64
-            enabled: ${{ contains(github.event.inputs.platforms, 'linux-amd64') }}
-          - goos: linux
-            goarch: arm64
-            suffix: linux-arm64
-            enabled: ${{ contains(github.event.inputs.platforms, 'linux-arm64') }}
-          - goos: linux
-            goarch: arm
-            goarm: 7
-            suffix: linux-armv7
-            enabled: ${{ contains(github.event.inputs.platforms, 'linux-armv7') }}
-          - goos: linux
-            goarch: arm
-            goarm: 6
-            suffix: linux-armv6
-            enabled: ${{ contains(github.event.inputs.platforms, 'linux-armv6') }}
-          - goos: darwin
-            goarch: amd64
-            suffix: darwin-amd64
-            enabled: ${{ contains(github.event.inputs.platforms, 'darwin-amd64') }}
-          - goos: darwin
-            goarch: arm64
-            suffix: darwin-arm64
-            enabled: ${{ contains(github.event.inputs.platforms, 'darwin-arm64') }}
-          - goos: windows
-            goarch: amd64
-            suffix: windows-amd64
-            enabled: ${{ contains(github.event.inputs.platforms, 'windows-amd64') }}
-    if: matrix.enabled
-
     steps:
       - name: 检出代码
         uses: actions/checkout@v4
-
       - name: 设置 Go 环境
         uses: actions/setup-go@v5
         with:
           go-version: "1.21"
-
       - name: 安装依赖
+        run: go mod download && go mod tidy
+      - name: 构建
         run: |
-          go mod download
-          go mod tidy
-
-      - name: 构建 CLI
-        env:
-          CGO_ENABLED: 1
-          GOOS: ${{ matrix.goos }}
-          GOARCH: ${{ matrix.goarch }}
-          GOARM: ${{ matrix.goarm }}
-        run: |
-          OUTPUT="lottery-tool-${{ matrix.suffix }}"
-          if [ "${{ matrix.goos }}" = "windows" ]; then
-            OUTPUT="${OUTPUT}.exe"
-          fi
-          go build -ldflags="-s -w -X main.Version=${{ github.event.inputs.version }}" -o ${OUTPUT} ./cmd/cli
-          echo "CLI_OUTPUT=${OUTPUT}" >> $GITHUB_ENV
-
-      - name: 构建 Server
-        env:
-          CGO_ENABLED: 1
-          GOOS: ${{ matrix.goos }}
-          GOARCH: ${{ matrix.goarch }}
-          GOARM: ${{ matrix.goarm }}
-        run: |
-          OUTPUT="lottery-server-${{ matrix.suffix }}"
-          if [ "${{ matrix.goos }}" = "windows" ]; then
-            OUTPUT="${OUTPUT}.exe"
-          fi
-          go build -ldflags="-s -w -X main.Version=${{ github.event.inputs.version }}" -o ${OUTPUT} ./cmd/server
-          echo "SERVER_OUTPUT=${OUTPUT}" >> $GITHUB_ENV
-
-      - name: 打包
-        run: |
-          mkdir -p release
-          if [ "${{ matrix.goos }}" = "windows" ]; then
-            zip release/lottery-tool-${{ matrix.suffix }}-${{ github.event.inputs.version }}.zip \
-              lottery-tool-${{ matrix.suffix }}.exe \
-              lottery-server-${{ matrix.suffix }}.exe \
-              config/config.yaml
-          else
-            tar -czf release/lottery-tool-${{ matrix.suffix }}-${{ github.event.inputs.version }}.tar.gz \
-              lottery-tool-${{ matrix.suffix }} \
-              lottery-server-${{ matrix.suffix }} \
-              config/config.yaml
-          fi
-
-      - name: 上传构建产物
+          CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w -X main.Version=${{ github.event.inputs.version }}" -o lottery-tool-linux-amd64 ./cmd/cli
+          CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w -X main.Version=${{ github.event.inputs.version }}" -o lottery-server-linux-amd64 ./cmd/server
+          tar -czf lottery-tool-linux-amd64-${{ github.event.inputs.version }}.tar.gz lottery-tool-linux-amd64 lottery-server-linux-amd64 config/config.yaml
+      - name: 上传产物
         uses: actions/upload-artifact@v4
         with:
-          name: release-${{ matrix.suffix }}
-          path: release/
+          name: release-linux-amd64
+          path: lottery-tool-linux-amd64-${{ github.event.inputs.version }}.tar.gz
+          retention-days: 30
+
+  build-linux-arm64:
+    name: 构建 Linux arm64
+    if: ${{ github.event.inputs.linux_arm64 == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+      - name: 设置 Go 环境
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.21"
+      - name: 安装依赖
+        run: go mod download && go mod tidy
+      - name: 构建
+        run: |
+          CGO_ENABLED=1 GOOS=linux GOARCH=arm64 go build -ldflags="-s -w -X main.Version=${{ github.event.inputs.version }}" -o lottery-tool-linux-arm64 ./cmd/cli
+          CGO_ENABLED=1 GOOS=linux GOARCH=arm64 go build -ldflags="-s -w -X main.Version=${{ github.event.inputs.version }}" -o lottery-server-linux-arm64 ./cmd/server
+          tar -czf lottery-tool-linux-arm64-${{ github.event.inputs.version }}.tar.gz lottery-tool-linux-arm64 lottery-server-linux-arm64 config/config.yaml
+      - name: 上传产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-linux-arm64
+          path: lottery-tool-linux-arm64-${{ github.event.inputs.version }}.tar.gz
+          retention-days: 30
+
+  build-linux-armv7:
+    name: 构建 Linux armv7
+    if: ${{ github.event.inputs.linux_armv7 == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+      - name: 设置 Go 环境
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.21"
+      - name: 安装依赖
+        run: go mod download && go mod tidy
+      - name: 构建
+        run: |
+          CGO_ENABLED=1 GOOS=linux GOARCH=arm GOARM=7 go build -ldflags="-s -w -X main.Version=${{ github.event.inputs.version }}" -o lottery-tool-linux-armv7 ./cmd/cli
+          CGO_ENABLED=1 GOOS=linux GOARCH=arm GOARM=7 go build -ldflags="-s -w -X main.Version=${{ github.event.inputs.version }}" -o lottery-server-linux-armv7 ./cmd/server
+          tar -czf lottery-tool-linux-armv7-${{ github.event.inputs.version }}.tar.gz lottery-tool-linux-armv7 lottery-server-linux-armv7 config/config.yaml
+      - name: 上传产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-linux-armv7
+          path: lottery-tool-linux-armv7-${{ github.event.inputs.version }}.tar.gz
+          retention-days: 30
+
+  build-darwin-amd64:
+    name: 构建 Darwin amd64
+    if: ${{ github.event.inputs.darwin_amd64 == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+      - name: 设置 Go 环境
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.21"
+      - name: 安装依赖
+        run: go mod download && go mod tidy
+      - name: 构建
+        run: |
+          CGO_ENABLED=1 GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w -X main.Version=${{ github.event.inputs.version }}" -o lottery-tool-darwin-amd64 ./cmd/cli
+          CGO_ENABLED=1 GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w -X main.Version=${{ github.event.inputs.version }}" -o lottery-server-darwin-amd64 ./cmd/server
+          tar -czf lottery-tool-darwin-amd64-${{ github.event.inputs.version }}.tar.gz lottery-tool-darwin-amd64 lottery-server-darwin-amd64 config/config.yaml
+      - name: 上传产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-darwin-amd64
+          path: lottery-tool-darwin-amd64-${{ github.event.inputs.version }}.tar.gz
+          retention-days: 30
+
+  build-darwin-arm64:
+    name: 构建 Darwin arm64
+    if: ${{ github.event.inputs.darwin_arm64 == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+      - name: 设置 Go 环境
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.21"
+      - name: 安装依赖
+        run: go mod download && go mod tidy
+      - name: 构建
+        run: |
+          CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w -X main.Version=${{ github.event.inputs.version }}" -o lottery-tool-darwin-arm64 ./cmd/cli
+          CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w -X main.Version=${{ github.event.inputs.version }}" -o lottery-server-darwin-arm64 ./cmd/server
+          tar -czf lottery-tool-darwin-arm64-${{ github.event.inputs.version }}.tar.gz lottery-tool-darwin-arm64 lottery-server-darwin-arm64 config/config.yaml
+      - name: 上传产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-darwin-arm64
+          path: lottery-tool-darwin-arm64-${{ github.event.inputs.version }}.tar.gz
+          retention-days: 30
+
+  build-windows-amd64:
+    name: 构建 Windows amd64
+    if: ${{ github.event.inputs.windows_amd64 == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+      - name: 设置 Go 环境
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.21"
+      - name: 安装依赖
+        run: go mod download && go mod tidy
+      - name: 构建
+        run: |
+          CGO_ENABLED=1 GOOS=windows GOARCH=amd64 go build -ldflags="-s -w -X main.Version=${{ github.event.inputs.version }}" -o lottery-tool-windows-amd64.exe ./cmd/cli
+          CGO_ENABLED=1 GOOS=windows GOARCH=amd64 go build -ldflags="-s -w -X main.Version=${{ github.event.inputs.version }}" -o lottery-server-windows-amd64.exe ./cmd/server
+          powershell -Command "Compress-Archive -Path 'lottery-tool-windows-amd64.exe','lottery-server-windows-amd64.exe','config/config.yaml' -DestinationPath 'lottery-tool-windows-amd64-${{ github.event.inputs.version }}.zip' -Force"
+      - name: 上传产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-windows-amd64
+          path: lottery-tool-windows-amd64-${{ github.event.inputs.version }}.zip
           retention-days: 30
 
   create-release:
     name: 创建 Release
-    needs: build-all
     runs-on: ubuntu-latest
     steps:
       - name: 下载所有产物
@@ -134,12 +206,25 @@ jobs:
           path: release
           merge-multiple: true
 
+      - name: 检查是否有产物
+        id: check_artifacts
+        run: |
+          if [ ! -d "release" ] || [ -z "$(ls -A release)" ]; then
+            echo "没有构建产物，跳过创建Release"
+            echo "has_artifacts=false" >> $GITHUB_OUTPUT
+          else
+            echo "has_artifacts=true" >> $GITHUB_OUTPUT
+          fi
+
       - name: 生成校验和
+        if: steps.check_artifacts.outputs.has_artifacts == 'true'
         run: |
           cd release
           sha256sum * > checksums.txt
+          cat checksums.txt
 
       - name: 创建 Release
+        if: steps.check_artifacts.outputs.has_artifacts == 'true'
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ github.event.inputs.version }}

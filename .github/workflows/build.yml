@@ -18,149 +18,274 @@ on:
         required: false
         type: boolean
         default: false
-      platforms:
-        description: 要构建的平台（逗号分隔：linux-amd64,linux-arm64,linux-armv7,darwin-amd64,darwin-arm64,windows-amd64）
-        required: true
-        type: string
-        default: "linux-amd64"
-      docker_platforms:
-        description: 要构建的Docker平台（逗号分隔：linux/amd64,linux/arm64,linux/arm/v7）
-        required: true
-        type: string
-        default: "linux/amd64"
+      linux_amd64:
+        description: 构建 Linux amd64
+        required: false
+        type: boolean
+        default: true
+      linux_arm64:
+        description: 构建 Linux arm64
+        required: false
+        type: boolean
+        default: false
+      linux_armv7:
+        description: 构建 Linux armv7
+        required: false
+        type: boolean
+        default: false
+      darwin_amd64:
+        description: 构建 Darwin amd64
+        required: false
+        type: boolean
+        default: false
+      darwin_arm64:
+        description: 构建 Darwin arm64
+        required: false
+        type: boolean
+        default: false
+      windows_amd64:
+        description: 构建 Windows amd64
+        required: false
+        type: boolean
+        default: false
+      docker_amd64:
+        description: 构建 Docker amd64
+        required: false
+        type: boolean
+        default: false
+      docker_arm64:
+        description: 构建 Docker arm64
+        required: false
+        type: boolean
+        default: false
+      docker_armv7:
+        description: 构建 Docker armv7
+        required: false
+        type: boolean
+        default: false
 
 jobs:
-  build-binaries:
-    name: 构建二进制文件
-    if: ${{ github.event.inputs.build_binaries == 'true' }}
+  build-linux-amd64:
+    name: 构建 Linux amd64
+    if: ${{ github.event.inputs.build_binaries == 'true' && github.event.inputs.linux_amd64 == 'true' }}
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        include:
-          - goos: linux
-            goarch: amd64
-            suffix: linux-amd64
-            enabled: ${{ contains(github.event.inputs.platforms, 'linux-amd64') }}
-          - goos: linux
-            goarch: arm64
-            suffix: linux-arm64
-            enabled: ${{ contains(github.event.inputs.platforms, 'linux-arm64') }}
-          - goos: linux
-            goarch: arm
-            goarm: 7
-            suffix: linux-armv7
-            enabled: ${{ contains(github.event.inputs.platforms, 'linux-armv7') }}
-          - goos: linux
-            goarch: arm
-            goarm: 6
-            suffix: linux-armv6
-            enabled: ${{ contains(github.event.inputs.platforms, 'linux-armv6') }}
-          - goos: darwin
-            goarch: amd64
-            suffix: darwin-amd64
-            enabled: ${{ contains(github.event.inputs.platforms, 'darwin-amd64') }}
-          - goos: darwin
-            goarch: arm64
-            suffix: darwin-arm64
-            enabled: ${{ contains(github.event.inputs.platforms, 'darwin-arm64') }}
-          - goos: windows
-            goarch: amd64
-            suffix: windows-amd64
-            enabled: ${{ contains(github.event.inputs.platforms, 'windows-amd64') }}
-    if: matrix.enabled
-
     steps:
       - name: 检出代码
         uses: actions/checkout@v4
-
       - name: 设置 Go 环境
         uses: actions/setup-go@v5
         with:
           go-version: "1.21"
-
       - name: 安装依赖
+        run: go mod download && go mod tidy
+      - name: 构建
         run: |
-          go mod download
-          go mod tidy
-
-      - name: 构建 CLI
-        env:
-          CGO_ENABLED: 1
-          GOOS: ${{ matrix.goos }}
-          GOARCH: ${{ matrix.goarch }}
-          GOARM: ${{ matrix.goarm }}
-        run: |
-          OUTPUT="lottery-tool-${{ matrix.suffix }}"
-          if [ "${{ matrix.goos }}" = "windows" ]; then
-            OUTPUT="${OUTPUT}.exe"
-          fi
-          go build -ldflags="-s -w -X main.Version=${{ github.event.inputs.version }}" -o ${OUTPUT} ./cmd/cli
-          echo "CLI_OUTPUT=${OUTPUT}" >> $GITHUB_ENV
-
-      - name: 构建 Server
-        env:
-          CGO_ENABLED: 1
-          GOOS: ${{ matrix.goos }}
-          GOARCH: ${{ matrix.goarch }}
-          GOARM: ${{ matrix.goarm }}
-        run: |
-          OUTPUT="lottery-server-${{ matrix.suffix }}"
-          if [ "${{ matrix.goos }}" = "windows" ]; then
-            OUTPUT="${OUTPUT}.exe"
-          fi
-          go build -ldflags="-s -w -X main.Version=${{ github.event.inputs.version }}" -o ${OUTPUT} ./cmd/server
-          echo "SERVER_OUTPUT=${OUTPUT}" >> $GITHUB_ENV
-
-      - name: 上传构建产物
+          CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w -X main.Version=${{ github.event.inputs.version }}" -o lottery-tool-linux-amd64 ./cmd/cli
+          CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w -X main.Version=${{ github.event.inputs.version }}" -o lottery-server-linux-amd64 ./cmd/server
+      - name: 上传产物
         uses: actions/upload-artifact@v4
         with:
-          name: binaries-${{ matrix.suffix }}
-          path: |
-            lottery-tool-${{ matrix.suffix }}${{ matrix.goos == 'windows' && '.exe' || '' }}
-            lottery-server-${{ matrix.suffix }}${{ matrix.goos == 'windows' && '.exe' || '' }}
+          name: linux-amd64
+          path: lottery-tool-linux-amd64 lottery-server-linux-amd64
           retention-days: 30
 
-  build-docker:
-    name: 构建 Docker 镜像
-    if: ${{ github.event.inputs.build_docker == 'true' }}
+  build-linux-arm64:
+    name: 构建 Linux arm64
+    if: ${{ github.event.inputs.build_binaries == 'true' && github.event.inputs.linux_arm64 == 'true' }}
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        include:
-          - platform: linux/amd64
-            suffix: amd64
-            enabled: ${{ contains(github.event.inputs.docker_platforms, 'linux/amd64') }}
-          - platform: linux/arm64
-            suffix: arm64
-            enabled: ${{ contains(github.event.inputs.docker_platforms, 'linux/arm64') }}
-          - platform: linux/arm/v7
-            suffix: armv7
-            enabled: ${{ contains(github.event.inputs.docker_platforms, 'linux/arm/v7') }}
-    if: matrix.enabled
-
     steps:
       - name: 检出代码
         uses: actions/checkout@v4
+      - name: 设置 Go 环境
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.21"
+      - name: 安装依赖
+        run: go mod download && go mod tidy
+      - name: 构建
+        run: |
+          CGO_ENABLED=1 GOOS=linux GOARCH=arm64 go build -ldflags="-s -w -X main.Version=${{ github.event.inputs.version }}" -o lottery-tool-linux-arm64 ./cmd/cli
+          CGO_ENABLED=1 GOOS=linux GOARCH=arm64 go build -ldflags="-s -w -X main.Version=${{ github.event.inputs.version }}" -o lottery-server-linux-arm64 ./cmd/server
+      - name: 上传产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-arm64
+          path: lottery-tool-linux-arm64 lottery-server-linux-arm64
+          retention-days: 30
 
+  build-linux-armv7:
+    name: 构建 Linux armv7
+    if: ${{ github.event.inputs.build_binaries == 'true' && github.event.inputs.linux_armv7 == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+      - name: 设置 Go 环境
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.21"
+      - name: 安装依赖
+        run: go mod download && go mod tidy
+      - name: 构建
+        run: |
+          CGO_ENABLED=1 GOOS=linux GOARCH=arm GOARM=7 go build -ldflags="-s -w -X main.Version=${{ github.event.inputs.version }}" -o lottery-tool-linux-armv7 ./cmd/cli
+          CGO_ENABLED=1 GOOS=linux GOARCH=arm GOARM=7 go build -ldflags="-s -w -X main.Version=${{ github.event.inputs.version }}" -o lottery-server-linux-armv7 ./cmd/server
+      - name: 上传产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-armv7
+          path: lottery-tool-linux-armv7 lottery-server-linux-armv7
+          retention-days: 30
+
+  build-darwin-amd64:
+    name: 构建 Darwin amd64
+    if: ${{ github.event.inputs.build_binaries == 'true' && github.event.inputs.darwin_amd64 == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+      - name: 设置 Go 环境
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.21"
+      - name: 安装依赖
+        run: go mod download && go mod tidy
+      - name: 构建
+        run: |
+          CGO_ENABLED=1 GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w -X main.Version=${{ github.event.inputs.version }}" -o lottery-tool-darwin-amd64 ./cmd/cli
+          CGO_ENABLED=1 GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w -X main.Version=${{ github.event.inputs.version }}" -o lottery-server-darwin-amd64 ./cmd/server
+      - name: 上传产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: darwin-amd64
+          path: lottery-tool-darwin-amd64 lottery-server-darwin-amd64
+          retention-days: 30
+
+  build-darwin-arm64:
+    name: 构建 Darwin arm64
+    if: ${{ github.event.inputs.build_binaries == 'true' && github.event.inputs.darwin_arm64 == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+      - name: 设置 Go 环境
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.21"
+      - name: 安装依赖
+        run: go mod download && go mod tidy
+      - name: 构建
+        run: |
+          CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w -X main.Version=${{ github.event.inputs.version }}" -o lottery-tool-darwin-arm64 ./cmd/cli
+          CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w -X main.Version=${{ github.event.inputs.version }}" -o lottery-server-darwin-arm64 ./cmd/server
+      - name: 上传产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: darwin-arm64
+          path: lottery-tool-darwin-arm64 lottery-server-darwin-arm64
+          retention-days: 30
+
+  build-windows-amd64:
+    name: 构建 Windows amd64
+    if: ${{ github.event.inputs.build_binaries == 'true' && github.event.inputs.windows_amd64 == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+      - name: 设置 Go 环境
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.21"
+      - name: 安装依赖
+        run: go mod download && go mod tidy
+      - name: 构建
+        run: |
+          CGO_ENABLED=1 GOOS=windows GOARCH=amd64 go build -ldflags="-s -w -X main.Version=${{ github.event.inputs.version }}" -o lottery-tool-windows-amd64.exe ./cmd/cli
+          CGO_ENABLED=1 GOOS=windows GOARCH=amd64 go build -ldflags="-s -w -X main.Version=${{ github.event.inputs.version }}" -o lottery-server-windows-amd64.exe ./cmd/server
+      - name: 上传产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-amd64
+          path: lottery-tool-windows-amd64.exe lottery-server-windows-amd64.exe
+          retention-days: 30
+
+  build-docker-amd64:
+    name: 构建 Docker amd64
+    if: ${{ github.event.inputs.build_docker == 'true' && github.event.inputs.docker_amd64 == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
       - name: 设置 QEMU
         uses: docker/setup-qemu-action@v3
-
       - name: 设置 Docker Buildx
         uses: docker/setup-buildx-action@v3
-
       - name: 登录 Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
-
-      - name: 构建并推送镜像
+      - name: 构建并推送
         uses: docker/build-push-action@v5
         with:
           context: .
           file: deploy/docker/Dockerfile
-          platforms: ${{ matrix.platform }}
+          platforms: linux/amd64
           push: true
-          tags: ${{ secrets.DOCKER_USERNAME }}/lottery-tool:${{ github.event.inputs.version }}-${{ matrix.suffix }},${{ secrets.DOCKER_USERNAME }}/lottery-tool:latest-${{ matrix.suffix }}
+          tags: ${{ secrets.DOCKER_USERNAME }}/lottery-tool:${{ github.event.inputs.version }}-amd64,${{ secrets.DOCKER_USERNAME }}/lottery-tool:latest-amd64
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  build-docker-arm64:
+    name: 构建 Docker arm64
+    if: ${{ github.event.inputs.build_docker == 'true' && github.event.inputs.docker_arm64 == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+      - name: 设置 QEMU
+        uses: docker/setup-qemu-action@v3
+      - name: 设置 Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: 登录 Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+      - name: 构建并推送
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: deploy/docker/Dockerfile
+          platforms: linux/arm64
+          push: true
+          tags: ${{ secrets.DOCKER_USERNAME }}/lottery-tool:${{ github.event.inputs.version }}-arm64,${{ secrets.DOCKER_USERNAME }}/lottery-tool:latest-arm64
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  build-docker-armv7:
+    name: 构建 Docker armv7
+    if: ${{ github.event.inputs.build_docker == 'true' && github.event.inputs.docker_armv7 == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+      - name: 设置 QEMU
+        uses: docker/setup-qemu-action@v3
+      - name: 设置 Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: 登录 Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+      - name: 构建并推送
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: deploy/docker/Dockerfile
+          platforms: linux/arm/v7
+          push: true
+          tags: ${{ secrets.DOCKER_USERNAME }}/lottery-tool:${{ github.event.inputs.version }}-armv7,${{ secrets.DOCKER_USERNAME }}/lottery-tool:latest-armv7
           cache-from: type=gha
           cache-to: type=gha,mode=max
