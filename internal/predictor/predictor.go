@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/rand"
 	"sort"
+	"sync"
 	"time"
 
 	"lottery-tool/internal/ai"
@@ -12,6 +13,16 @@ import (
 	"lottery-tool/internal/storage"
 	"lottery-tool/pkg/types"
 )
+
+// 全局随机数生成器，使用互斥锁保证线程安全
+var (
+	globalRand     *rand.Rand
+	globalRandMu   sync.Mutex
+)
+
+func init() {
+	globalRand = rand.New(rand.NewSource(time.Now().UnixNano()))
+}
 
 // Predictor 预测器
 type Predictor struct {
@@ -135,8 +146,6 @@ func (p *Predictor) generateByStrategy(lotteryType types.LotteryType, strategy P
 
 // generateRandomStrategy 随机策略
 func (p *Predictor) generateRandomStrategy(lotteryType types.LotteryType, analysis *analyzer.Analysis) *types.Prediction {
-	r := rand.New(rand.NewSource(time.Now().UnixNano()))
-	
 	var redCount, blueCount, redMax, blueMax int
 	
 	switch lotteryType {
@@ -159,25 +168,27 @@ func (p *Predictor) generateRandomStrategy(lotteryType types.LotteryType, analys
 	}
 
 	// 随机选择红球
+	globalRandMu.Lock()
 	redSet := make(map[int]bool)
 	for len(redSet) < redCount {
-		num := r.Intn(redMax) + 1
+		num := globalRand.Intn(redMax) + 1
 		if !redSet[num] {
 			redSet[num] = true
 			prediction.RedNumbers = append(prediction.RedNumbers, num)
 		}
 	}
-	sort.Ints(prediction.RedNumbers)
 
 	// 随机选择蓝球
 	blueSet := make(map[int]bool)
 	for len(blueSet) < blueCount {
-		num := r.Intn(blueMax) + 1
+		num := globalRand.Intn(blueMax) + 1
 		if !blueSet[num] {
 			blueSet[num] = true
 			prediction.BlueNumbers = append(prediction.BlueNumbers, num)
 		}
 	}
+	globalRandMu.Unlock()
+	sort.Ints(prediction.RedNumbers)
 	sort.Ints(prediction.BlueNumbers)
 
 	return prediction
@@ -361,9 +372,10 @@ func (p *Predictor) fillRedBalls(prediction *types.Prediction, lotteryType types
 		existing[num] = true
 	}
 
-	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+	globalRandMu.Lock()
+	defer globalRandMu.Unlock()
 	for len(prediction.RedNumbers) < targetCount {
-		num := r.Intn(maxNum) + 1
+		num := globalRand.Intn(maxNum) + 1
 		if !existing[num] {
 			existing[num] = true
 			prediction.RedNumbers = append(prediction.RedNumbers, num)
@@ -389,9 +401,10 @@ func (p *Predictor) fillBlueBalls(prediction *types.Prediction, lotteryType type
 		existing[num] = true
 	}
 
-	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+	globalRandMu.Lock()
+	defer globalRandMu.Unlock()
 	for len(prediction.BlueNumbers) < targetCount {
-		num := r.Intn(maxNum) + 1
+		num := globalRand.Intn(maxNum) + 1
 		if !existing[num] {
 			existing[num] = true
 			prediction.BlueNumbers = append(prediction.BlueNumbers, num)
