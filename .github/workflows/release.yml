@@ -13,10 +13,15 @@ on:
         required: false
         type: string
         default: "新版本发布"
+      platforms:
+        description: 要构建的平台（逗号分隔：linux-amd64,linux-arm64,linux-armv7,darwin-amd64,darwin-arm64,windows-amd64）
+        required: true
+        type: string
+        default: "linux-amd64,linux-arm64"
 
 jobs:
   build-all:
-    name: 构建所有平台
+    name: 构建指定平台
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -24,26 +29,34 @@ jobs:
           - goos: linux
             goarch: amd64
             suffix: linux-amd64
+            enabled: ${{ contains(github.event.inputs.platforms, 'linux-amd64') }}
           - goos: linux
             goarch: arm64
             suffix: linux-arm64
+            enabled: ${{ contains(github.event.inputs.platforms, 'linux-arm64') }}
           - goos: linux
             goarch: arm
             goarm: 7
             suffix: linux-armv7
+            enabled: ${{ contains(github.event.inputs.platforms, 'linux-armv7') }}
           - goos: linux
             goarch: arm
             goarm: 6
             suffix: linux-armv6
+            enabled: ${{ contains(github.event.inputs.platforms, 'linux-armv6') }}
           - goos: darwin
             goarch: amd64
             suffix: darwin-amd64
+            enabled: ${{ contains(github.event.inputs.platforms, 'darwin-amd64') }}
           - goos: darwin
             goarch: arm64
             suffix: darwin-arm64
+            enabled: ${{ contains(github.event.inputs.platforms, 'darwin-arm64') }}
           - goos: windows
             goarch: amd64
             suffix: windows-amd64
+            enabled: ${{ contains(github.event.inputs.platforms, 'windows-amd64') }}
+    if: matrix.enabled
 
     steps:
       - name: 检出代码

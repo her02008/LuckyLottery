@@ -18,6 +18,16 @@ on:
         required: false
         type: boolean
         default: false
+      platforms:
+        description: 要构建的平台（逗号分隔：linux-amd64,linux-arm64,linux-armv7,darwin-amd64,darwin-arm64,windows-amd64）
+        required: true
+        type: string
+        default: "linux-amd64"
+      docker_platforms:
+        description: 要构建的Docker平台（逗号分隔：linux/amd64,linux/arm64,linux/arm/v7）
+        required: true
+        type: string
+        default: "linux/amd64"
 
 jobs:
   build-binaries:
@@ -30,26 +40,34 @@ jobs:
           - goos: linux
             goarch: amd64
             suffix: linux-amd64
+            enabled: ${{ contains(github.event.inputs.platforms, 'linux-amd64') }}
           - goos: linux
             goarch: arm64
             suffix: linux-arm64
+            enabled: ${{ contains(github.event.inputs.platforms, 'linux-arm64') }}
           - goos: linux
             goarch: arm
             goarm: 7
             suffix: linux-armv7
+            enabled: ${{ contains(github.event.inputs.platforms, 'linux-armv7') }}
           - goos: linux
             goarch: arm
             goarm: 6
             suffix: linux-armv6
+            enabled: ${{ contains(github.event.inputs.platforms, 'linux-armv6') }}
           - goos: darwin
             goarch: amd64
             suffix: darwin-amd64
+            enabled: ${{ contains(github.event.inputs.platforms, 'darwin-amd64') }}
           - goos: darwin
             goarch: arm64
             suffix: darwin-arm64
+            enabled: ${{ contains(github.event.inputs.platforms, 'darwin-arm64') }}
           - goos: windows
             goarch: amd64
             suffix: windows-amd64
+            enabled: ${{ contains(github.event.inputs.platforms, 'windows-amd64') }}
+    if: matrix.enabled
 
     steps:
       - name: 检出代码
@@ -108,10 +126,17 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        platform:
-          - linux/amd64
-          - linux/arm64
-          - linux/arm/v7
+        include:
+          - platform: linux/amd64
+            suffix: amd64
+            enabled: ${{ contains(github.event.inputs.docker_platforms, 'linux/amd64') }}
+          - platform: linux/arm64
+            suffix: arm64
+            enabled: ${{ contains(github.event.inputs.docker_platforms, 'linux/arm64') }}
+          - platform: linux/arm/v7
+            suffix: armv7
+            enabled: ${{ contains(github.event.inputs.docker_platforms, 'linux/arm/v7') }}
+    if: matrix.enabled
 
     steps:
       - name: 检出代码
@@ -136,6 +161,6 @@ jobs:
           file: deploy/docker/Dockerfile
           platforms: ${{ matrix.platform }}
           push: true
-          tags: ${{ secrets.DOCKER_USERNAME }}/lottery-tool:${{ github.event.inputs.version }}-${{ matrix.platform == 'linux/amd64' && 'amd64' || matrix.platform == 'linux/arm64' && 'arm64' || 'armv7' }},${{ secrets.DOCKER_USERNAME }}/lottery-tool:latest
+          tags: ${{ secrets.DOCKER_USERNAME }}/lottery-tool:${{ github.event.inputs.version }}-${{ matrix.suffix }},${{ secrets.DOCKER_USERNAME }}/lottery-tool:latest-${{ matrix.suffix }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
