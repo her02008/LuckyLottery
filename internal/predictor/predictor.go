@@ -1,8 +1,10 @@
 package predictor
 
 import (
+	cryptorand "crypto/rand"
+	"encoding/binary"
 	"fmt"
-	"math/rand"
+	mathrand "math/rand"
 	"sort"
 	"sync"
 	"time"
@@ -16,12 +18,22 @@ import (
 
 // 全局随机数生成器，使用互斥锁保证线程安全
 var (
-	globalRand     *rand.Rand
+	globalRand     *mathrand.Rand
 	globalRandMu   sync.Mutex
 )
 
 func init() {
-	globalRand = rand.New(rand.NewSource(time.Now().UnixNano()))
+	// 使用 crypto/rand 生成更安全的种子
+	var seed int64
+	b := make([]byte, 8)
+	_, err := cryptorand.Read(b)
+	if err != nil {
+		// 回退到时间种子
+		seed = time.Now().UnixNano()
+	} else {
+		seed = int64(binary.BigEndian.Uint64(b))
+	}
+	globalRand = mathrand.New(mathrand.NewSource(seed))
 }
 
 // Predictor 预测器
@@ -144,6 +156,36 @@ func (p *Predictor) generateByStrategy(lotteryType types.LotteryType, strategy P
 	}
 }
 
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+// randomSelect 从数组中随机选择不重复的 n 个元素
+func randomSelect[T any](items []T, n int) []T {
+	if n <= 0 || len(items) == 0 {
+		return nil
+	}
+	if n >= len(items) {
+		return items
+	}
+
+	globalRandMu.Lock()
+	defer globalRandMu.Unlock()
+
+	// 使用 Fisher-Yates 洗牌算法随机打乱
+	shuffled := make([]T, len(items))
+	copy(shuffled, items)
+	for i := len(shuffled) - 1; i > 0; i-- {
+		j := globalRand.Intn(i + 1)
+		shuffled[i], shuffled[j] = shuffled[j], shuffled[i]
+	}
+
+	return shuffled[:n]
+}
+
 // generateRandomStrategy 随机策略
 func (p *Predictor) generateRandomStrategy(lotteryType types.LotteryType, analysis *analyzer.Analysis) *types.Prediction {
 	var redCount, blueCount, redMax, blueMax int
@@ -213,11 +255,12 @@ func (p *Predictor) generateHotStrategy(lotteryType types.LotteryType, analysis 
 		Confidence:  0.5,
 	}
 
-	// 从热号中选择红球
+	// 从热号中随机选择红球
 	hotRedCount := len(analysis.HotRedNumbers)
 	if hotRedCount >= redCount {
-		for i := 0; i < redCount; i++ {
-			prediction.RedNumbers = append(prediction.RedNumbers, analysis.HotRedNumbers[i].Number)
+		selected := randomSelect(analysis.HotRedNumbers, redCount)
+		for _, stat := range selected {
+			prediction.RedNumbers = append(prediction.RedNumbers, stat.Number)
 		}
 	} else {
 		// 热号不够，补充其他号码
@@ -229,11 +272,12 @@ func (p *Predictor) generateHotStrategy(lotteryType types.LotteryType, analysis 
 	}
 	sort.Ints(prediction.RedNumbers)
 
-	// 从热号中选择蓝球
+	// 从热号中随机选择蓝球
 	hotBlueCount := len(analysis.HotBlueNumbers)
 	if hotBlueCount >= blueCount {
-		for i := 0; i < blueCount; i++ {
-			prediction.BlueNumbers = append(prediction.BlueNumbers, analysis.HotBlueNumbers[i].Number)
+		selected := randomSelect(analysis.HotBlueNumbers, blueCount)
+		for _, stat := range selected {
+			prediction.BlueNumbers = append(prediction.BlueNumbers, stat.Number)
 		}
 	} else {
 		for _, stat := range analysis.HotBlueNumbers {
@@ -265,11 +309,12 @@ func (p *Predictor) generateColdStrategy(lotteryType types.LotteryType, analysis
 		Confidence:  0.4,
 	}
 
-	// 从冷号中选择红球
+	// 从冷号中随机选择红球
 	coldRedCount := len(analysis.ColdRedNumbers)
 	if coldRedCount >= redCount {
-		for i := 0; i < redCount; i++ {
-			prediction.RedNumbers = append(prediction.RedNumbers, analysis.ColdRedNumbers[i].Number)
+		selected := randomSelect(analysis.ColdRedNumbers, redCount)
+		for _, stat := range selected {
+			prediction.RedNumbers = append(prediction.RedNumbers, stat.Number)
 		}
 	} else {
 		for _, stat := range analysis.ColdRedNumbers {
@@ -279,11 +324,12 @@ func (p *Predictor) generateColdStrategy(lotteryType types.LotteryType, analysis
 	}
 	sort.Ints(prediction.RedNumbers)
 
-	// 从冷号中选择蓝球
+	// 从冷号中随机选择蓝球
 	coldBlueCount := len(analysis.ColdBlueNumbers)
 	if coldBlueCount >= blueCount {
-		for i := 0; i < blueCount; i++ {
-			prediction.BlueNumbers = append(prediction.BlueNumbers, analysis.ColdBlueNumbers[i].Number)
+		selected := randomSelect(analysis.ColdBlueNumbers, blueCount)
+		for _, stat := range selected {
+			prediction.BlueNumbers = append(prediction.BlueNumbers, stat.Number)
 		}
 	} else {
 		for _, stat := range analysis.ColdBlueNumbers {
@@ -319,14 +365,20 @@ func (p *Predictor) generateMixStrategy(lotteryType types.LotteryType, analysis 
 	hotRedCount := redCount * 3 / 5
 	coldRedCount := redCount - hotRedCount
 
-	// 选择热号红球
-	for i := 0; i < hotRedCount && i < len(analysis.HotRedNumbers); i++ {
-		prediction.RedNumbers = append(prediction.RedNumbers, analysis.HotRedNumbers[i].Number)
+	// 从热号中随机选择红球
+	if len(analysis.HotRedNumbers) > 0 {
+		selected := randomSelect(analysis.HotRedNumbers, min(hotRedCount, len(analysis.HotRedNumbers)))
+		for _, stat := range selected {
+			prediction.RedNumbers = append(prediction.RedNumbers, stat.Number)
+		}
 	}
 
-	// 选择冷号红球
-	for i := 0; i < coldRedCount && i < len(analysis.ColdRedNumbers); i++ {
-		prediction.RedNumbers = append(prediction.RedNumbers, analysis.ColdRedNumbers[i].Number)
+	// 从冷号中随机选择红球
+	if len(analysis.ColdRedNumbers) > 0 {
+		selected := randomSelect(analysis.ColdRedNumbers, min(coldRedCount, len(analysis.ColdRedNumbers)))
+		for _, stat := range selected {
+			prediction.RedNumbers = append(prediction.RedNumbers, stat.Number)
+		}
 	}
 
 	// 如果数量不够，补充其他号码
@@ -340,12 +392,20 @@ func (p *Predictor) generateMixStrategy(lotteryType types.LotteryType, analysis 
 	}
 	coldBlueCount := blueCount - hotBlueCount
 
-	for i := 0; i < hotBlueCount && i < len(analysis.HotBlueNumbers); i++ {
-		prediction.BlueNumbers = append(prediction.BlueNumbers, analysis.HotBlueNumbers[i].Number)
+	// 从热号中随机选择蓝球
+	if len(analysis.HotBlueNumbers) > 0 {
+		selected := randomSelect(analysis.HotBlueNumbers, min(hotBlueCount, len(analysis.HotBlueNumbers)))
+		for _, stat := range selected {
+			prediction.BlueNumbers = append(prediction.BlueNumbers, stat.Number)
+		}
 	}
 
-	for i := 0; i < coldBlueCount && i < len(analysis.ColdBlueNumbers); i++ {
-		prediction.BlueNumbers = append(prediction.BlueNumbers, analysis.ColdBlueNumbers[i].Number)
+	// 从冷号中随机选择蓝球
+	if len(analysis.ColdBlueNumbers) > 0 {
+		selected := randomSelect(analysis.ColdBlueNumbers, min(coldBlueCount, len(analysis.ColdBlueNumbers)))
+		for _, stat := range selected {
+			prediction.BlueNumbers = append(prediction.BlueNumbers, stat.Number)
+		}
 	}
 
 	p.fillBlueBalls(prediction, lotteryType, analysis)
